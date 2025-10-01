@@ -8,48 +8,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://kit.fontawesome.com/a7d8ec7750.js" crossorigin="anonymous"></script>
     
-    <!-- Firebase/Firestore Imports -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        
-        // --- Глобальные переменные Firebase (Обязательно для Immersive Canvas) ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        
-        if (firebaseConfig) {
-            window.firebaseApp = initializeApp(firebaseConfig);
-            window.db = getFirestore(window.firebaseApp);
-            window.auth = getAuth(window.firebaseApp);
-
-            // Аутентификация
-            onAuthStateChanged(window.auth, async (user) => {
-                if (user) {
-                    window.userId = user.uid;
-                } else if (initialAuthToken) {
-                    try {
-                        await signInWithCustomToken(window.auth, initialAuthToken);
-                        window.userId = window.auth.currentUser.uid;
-                    } catch (error) {
-                        console.error("Custom token sign-in failed, falling back to anonymous:", error);
-                        await signInAnonymously(window.auth);
-                        window.userId = window.auth.currentUser.uid;
-                    }
-                } else {
-                    await signInAnonymously(window.auth);
-                    window.userId = window.auth.currentUser.uid;
-                }
-                
-                // После успешной аутентификации инициализируем основное приложение
-                if (window.userId) {
-                    console.log("Authenticated with user ID:", window.userId);
-                    window.dispatchEvent(new Event('authReady'));
-                }
-            });
-        }
-    </script>
     <style>
         /* ===== Design system: Grok 2.0 (Perfected Dark Theme) ===== */
         :root {
@@ -173,8 +131,8 @@
         .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
         /* Settings Panel */
-        #settings-panel > div {
-            transform: translateY(0);
+        #settings-panel {
+            transition: opacity 0.3s, transform 0.3s;
         }
 
         @media (min-width: 768px) {
@@ -217,7 +175,7 @@
 
             <!-- Блок настроек внизу сайдбара -->
             <div class="p-4 border-t border-[var(--border)]">
-                <div class="text-[var(--muted)] text-xs mb-2 truncate">ID: <span id="display-user-id" class="font-mono text-white text-sm">...</span></div>
+                <div class="text-[var(--muted)] text-xs mb-2 truncate">Статус: <span id="display-user-id" class="font-mono text-white text-sm">Локальный</span></div>
                 <button id="settings-btn" class="w-full text-left p-3 rounded-xl hover:bg-[var(--layer3)] transition-colors text-white flex items-center justify-between">
                     <span class="font-medium"><i class="fa-solid fa-cog mr-2 text-[var(--accent)]"></i> Настройки</span>
                     <i class="fa-solid fa-chevron-right text-xs"></i>
@@ -235,7 +193,7 @@
                     </button>
                     <h1 id="chat-title" class="text-xl font-bold truncate max-w-[180px] sm:max-w-full">Burini AI Chat</h1>
                 </div>
-                <span id="user-badge" class="text-xs font-mono bg-[var(--accent)] text-black px-3 py-1 rounded-full font-bold shadow-md">FREE TIER</span>
+                <span id="user-badge" class="text-xs font-mono bg-[var(--accent)] text-black px-3 py-1 rounded-full font-bold shadow-md">LOCAL MODE</span>
             </header>
 
             <!-- Контейнер сообщений -->
@@ -314,18 +272,13 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
     <script type="module">
-        // Инициализация Telegram WebApp
-        if (window.Telegram && window.Telegram.WebApp) {
-            window.Telegram.WebApp.ready();
-            window.Telegram.WebApp.expand();
-            // Установка цветов для соответствия дизайну
-            window.Telegram.WebApp.setHeaderColor('#000000'); 
-            window.Telegram.WebApp.setBackgroundColor('#000000');
-        } else {
-            console.warn("Telegram WebApp object not found. Running in standalone mode.");
-        }
+        
+        // --- Константы Local Storage ---
+        const CHATS_STORAGE_KEY = 'burini_chats_v1';
+        const SETTINGS_STORAGE_KEY = 'burini_settings_v1';
+        const API_URL = '/api/chat'; 
 
-        // --- DOM Elements ---
+        // --- DOM Elements (Сокращено для удобства) ---
         const sidebar = document.getElementById('sidebar');
         const sidebarOverlay = document.getElementById('sidebar-overlay');
         const menuBtn = document.getElementById('menu-btn');
@@ -342,32 +295,63 @@
         const modelSelect = document.getElementById('model-select');
         const modeButtons = document.querySelectorAll('.mode-btn');
         const starsToggle = document.getElementById('stars-toggle');
-        const themeToggle = document.getElementById('theme-toggle'); // Theme toggle is now hidden/unused in this dark-only theme
         const notifyToggle = document.getElementById('notify-toggle');
-        const displayUserId = document.getElementById('display-user-id');
         
         // --- State Management ---
         const state = {
             currentChatId: null,
             isTyping: false,
+            // Начальные настройки (по умолчанию)
             settings: {
-                theme: 'dark', // Fixed to dark
                 starsEnabled: true,
                 currentModel: 'x-ai/grok-4-fast:free',
                 currentMode: 'smart',
                 notifications: true,
             },
+            // Хранилище чатов: { chatId: { title: "...", messages: [...] } }
             chats: {}, 
-            userId: null,
-            API_URL: '/api/chat', 
         };
 
-        // --- Firestore References ---
-        const getChatsCollectionRef = () => collection(window.db, "artifacts", appId, "users", window.userId, "chats");
-        const getChatDocRef = (chatId) => doc(window.db, "artifacts", appId, "users", window.userId, "chats", chatId);
-        const getMessagesCollectionRef = (chatId) => collection(getChatDocRef(chatId), "messages");
+        // --- Local Storage Functions ---
 
+        /** * Загружает все данные (чаты и настройки) из Local Storage. 
+         * Если данных нет, инициализирует пустую структуру.
+         */
+        function loadDataFromLocalStorage() {
+            try {
+                const storedChats = localStorage.getItem(CHATS_STORAGE_KEY);
+                if (storedChats) {
+                    state.chats = JSON.parse(storedChats);
+                } else {
+                    state.chats = {};
+                }
+
+                const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
+                if (storedSettings) {
+                    state.settings = { ...state.settings, ...JSON.parse(storedSettings) };
+                }
+            } catch (e) {
+                console.error("Error loading data from Local Storage:", e);
+                state.chats = {}; // Сброс при ошибке
+            }
+        }
+
+        /** Сохраняет текущие данные (чаты и настройки) в Local Storage. */
+        function saveDataToLocalStorage() {
+            try {
+                localStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(state.chats));
+                localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state.settings));
+            } catch (e) {
+                console.error("Error saving data to Local Storage:", e);
+            }
+        }
+        
         // --- Utility Functions ---
+
+        /** Генерирует уникальный ID для чата. */
+        function generateId() {
+            return 'chat_' + Date.now().toString(36) + Math.random().toString(36).substring(2);
+        }
 
         /** Переключает боковое меню (открывает/закрывает). */
         function toggleSidebar(open) {
@@ -380,72 +364,39 @@
             }
         }
 
-        /** Загружает настройки из Firestore. */
-        async function loadSettings() {
-            if (!window.db || !window.userId) return;
-            displayUserId.textContent = window.userId ? (window.userId.substring(0, 8) + '...') : 'N/A';
-            try {
-                const settingsDocRef = doc(window.db, "artifacts", appId, "users", window.userId, "metadata", "settings");
-                const docSnap = await getDoc(settingsDocRef);
-                if (docSnap.exists()) {
-                    state.settings = { ...state.settings, ...docSnap.data() };
-                }
-                applySettings();
-            } catch (error) {
-                console.error("Error loading settings:", error);
-            }
-        }
-
         /** Применяет настройки к DOM. */
         function applySettings() {
-            // Stars Toggle
             document.getElementById("stars").style.display = state.settings.starsEnabled ? "block" : "none";
             starsToggle.checked = state.settings.starsEnabled;
-
-            // Notifications Toggle
             notifyToggle.checked = state.settings.notifications;
-            
-            // Model Select
             modelSelect.value = state.settings.currentModel;
 
-            // Mode Buttons
             modeButtons.forEach(btn => {
                 const isSelected = btn.dataset.mode === state.settings.currentMode;
                 btn.classList.toggle('active', isSelected);
-                // Also update the button's model data if modelSelect changed it
                 if (isSelected) {
                      btn.dataset.model = state.settings.currentModel;
                 }
             });
         }
 
-        /** Сохраняет настройки в Firestore. */
-        async function saveSettings() {
-            if (!window.db || !window.userId) return;
-            
+        /** Обновляет state.settings из UI и сохраняет в Local Storage. */
+        function saveSettings() {
             state.settings.starsEnabled = starsToggle.checked;
             state.settings.currentModel = modelSelect.value;
             state.settings.notifications = notifyToggle.checked;
             
-            // Determine current mode based on model selection if needed
+            // Определяем текущий режим по активной модели
             const activeModeBtn = Array.from(modeButtons).find(btn => btn.dataset.model === state.settings.currentModel);
             if (activeModeBtn) {
                 state.settings.currentMode = activeModeBtn.dataset.mode;
             } else {
-                 // Fallback if model doesn't match a mode button
                  state.settings.currentMode = 'smart';
             }
 
             applySettings(); 
-
-            try {
-                const settingsDocRef = doc(window.db, "artifacts", appId, "users", window.userId, "metadata", "settings");
-                await setDoc(settingsDocRef, state.settings, { merge: true });
-                showToast("Настройки сохранены!");
-            } catch (error) {
-                console.error("Error saving settings:", error);
-                showToast("Ошибка сохранения настроек.", 'danger');
-            }
+            saveDataToLocalStorage();
+            showToast("Настройки сохранены!");
         }
 
         /** Отображение уведомления Toast. */
@@ -477,26 +428,25 @@
         // --- Chat Functions ---
 
         /** Создает новый чат. */
-        async function createNewChat() {
-            if (!window.db || !window.userId) return showToast("Нет подключения к БД.", 'danger');
-            try {
-                const chatRef = await addDoc(getChatsCollectionRef(), {
-                    title: "Новый чат",
-                    createdAt: serverTimestamp(),
-                    mode: state.settings.currentMode,
-                });
-                selectChat(chatRef.id);
-            } catch (error) {
-                console.error("Error creating new chat:", error);
-                showToast("Ошибка при создании чата.", 'danger');
-            }
+        function createNewChat() {
+            const newChatId = generateId();
+            state.chats[newChatId] = {
+                id: newChatId,
+                title: "Новый чат",
+                createdAt: Date.now(),
+                mode: state.settings.currentMode,
+                messages: []
+            };
+            saveDataToLocalStorage();
+            renderChatList();
+            selectChat(newChatId);
         }
 
         /** Переключает на выбранный чат. */
         function selectChat(chatId) {
             state.currentChatId = chatId;
-            renderChat(chatId);
-            // Highlight selected chat in sidebar
+            renderCurrentChat();
+            
             document.querySelectorAll('.chat-item').forEach(el => {
                 el.classList.remove('bg-gray-700', 'font-bold');
                 if (el.dataset.id === chatId) {
@@ -509,15 +459,51 @@
             }
         }
 
+        /** Рендерит список чатов. */
+        function renderChatList() {
+            chatList.innerHTML = '';
+            chatList.appendChild(newChatBtn); 
+            
+            // Сортировка по дате создания
+            const sortedChatIds = Object.keys(state.chats).sort((a, b) => state.chats[b].createdAt - state.chats[a].createdAt);
+
+            let firstChatId = null;
+            
+            sortedChatIds.forEach((chatId) => {
+                const chat = state.chats[chatId];
+                if (!firstChatId) firstChatId = chatId;
+
+                const chatItem = document.createElement('button');
+                chatItem.className = 'chat-item w-full text-left p-3 rounded-xl transition-colors truncate hover:bg-[var(--layer3)] active:scale-[0.98]';
+                chatItem.dataset.id = chatId;
+                chatItem.onclick = () => selectChat(chatId);
+                chatItem.innerHTML = `<i class="fa-solid fa-message mr-2 text-[var(--accent)]"></i> ${chat.title}`;
+                chatList.appendChild(chatItem);
+            });
+            
+            // Если нет активного чата, выбираем первый или создаем новый
+            if (!state.currentChatId && firstChatId) {
+                selectChat(firstChatId);
+            } else if (!state.currentChatId && sortedChatIds.length === 0) {
+                 createNewChat(); // Если чатов вообще нет, создаем
+            } else if (state.currentChatId && !state.chats[state.currentChatId]) {
+                 // Если текущий ID не существует (например, был удален), выбираем первый
+                 selectChat(firstChatId);
+            } else {
+                 // Перерисовка текущего чата для актуализации (например, после изменения заголовка)
+                 renderCurrentChat();
+            }
+        }
+
         /** Рендерит сообщения текущего чата. */
-        function renderChat(chatId) {
+        function renderCurrentChat() {
+            const chatId = state.currentChatId;
             const chat = state.chats[chatId];
             if (!chat) return;
 
             chatTitleEl.textContent = chat.title || "Новый чат";
             messagesContainer.innerHTML = '';
             
-            // Добавляем стартовое сообщение, если чат пуст
             if (chat.messages.length === 0) {
                  messagesContainer.innerHTML = `
                     <div class="text-center text-[var(--muted)] pt-8">
@@ -562,6 +548,7 @@
 
         /** Добавляет индикатор печати. */
         function addTypingIndicator() {
+            // ... (логика индикатора печати остается прежней) ...
             const existing = document.getElementById('typing-indicator');
             if (existing) return;
 
@@ -584,6 +571,7 @@
 
         /** Удаляет индикатор печати. */
         function removeTypingIndicator() {
+            // ... (логика индикатора печати остается прежней) ...
             const indicator = document.getElementById('typing-indicator');
             if (indicator) {
                 indicator.remove();
@@ -598,27 +586,21 @@
             const userPrompt = promptInput.value.trim();
             if (!userPrompt) return;
 
-            // 1. Сбор истории сообщений для отправки
-            const chatMessages = state.chats[state.currentChatId]?.messages || [];
-            const apiMessages = chatMessages.map(msg => ({ role: msg.role, content: msg.content }));
+            const currentChat = state.chats[state.currentChatId];
+            if (!currentChat) return showToast("Чат не найден. Попробуйте создать новый.", 'danger');
 
-            // 2. Добавление сообщения пользователя в UI и DB
-            const userMessageData = { role: 'user', content: userPrompt, timestamp: serverTimestamp() };
+            // 1. Сбор истории сообщений для отправки (без лишних полей)
+            const apiMessages = currentChat.messages.map(msg => ({ role: msg.role, content: msg.content }));
+
+            // 2. Добавление сообщения пользователя в UI и State
             const userMessageLocal = { role: 'user', content: userPrompt };
-            
-            state.chats[state.currentChatId].messages.push(userMessageLocal); 
-            renderChat(state.currentChatId);
+            currentChat.messages.push(userMessageLocal); 
+            renderCurrentChat();
+            saveDataToLocalStorage();
             
             // Сброс поля ввода
             promptInput.value = '';
-            promptInput.style.height = '48px'; // Возврат к исходной высоте
-            
-            try {
-                await addDoc(getMessagesCollectionRef(state.currentChatId), userMessageData);
-            } catch (e) {
-                console.error("Failed to save user message to Firestore:", e);
-                showToast("Ошибка сохранения сообщения в БД.", 'danger');
-            }
+            promptInput.style.height = '48px'; 
 
             // 3. Добавление индикатора печати
             addTypingIndicator();
@@ -626,7 +608,7 @@
 
             // 4. API Call
             try {
-                const response = await fetch(state.API_URL, {
+                const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -644,108 +626,45 @@
                 const data = await response.json();
                 const aiResponseText = data.content || "Произошла ошибка при получении ответа от ИИ.";
 
-                // 5. Обработка ответа ИИ
-                const aiMessageData = { role: 'assistant', content: aiResponseText, timestamp: serverTimestamp() };
+                // 5. Обработка ответа ИИ и обновление State
                 const aiMessageLocal = { role: 'assistant', content: aiResponseText };
-                
-                state.chats[state.currentChatId].messages.push(aiMessageLocal); 
+                currentChat.messages.push(aiMessageLocal); 
 
-                // 6. Сохранение ответа ИИ в DB
-                await addDoc(getMessagesCollectionRef(state.currentChatId), aiMessageData);
-
-                // 7. Обновление заголовка чата
-                if (chatMessages.length === 0) {
+                // 6. Обновление заголовка чата
+                if (apiMessages.length === 0) {
                     const newTitle = userPrompt.substring(0, 30) + (userPrompt.length > 30 ? '...' : '');
-                    state.chats[state.currentChatId].title = newTitle;
-                    await setDoc(getChatDocRef(state.currentChatId), { title: newTitle }, { merge: true });
+                    currentChat.title = newTitle;
+                    renderChatList(); // Перерисовываем список, чтобы обновить заголовок
                 }
 
             } catch (error) {
                 console.error("Chat API error:", error);
                 const errorMessage = error.message.includes('API Error') ? error.message : "Произошла ошибка подключения к ИИ.";
-                const errorMsgObj = { role: 'assistant', content: `[Ошибка]: ${errorMessage}`, timestamp: serverTimestamp() };
-                state.chats[state.currentChatId].messages.push(errorMsgObj);
-                await addDoc(getMessagesCollectionRef(state.currentChatId), errorMsgObj);
+                const errorMsgObj = { role: 'assistant', content: `[Ошибка]: ${errorMessage}` };
+                currentChat.messages.push(errorMsgObj);
             } finally {
-                // 8. Финализация UI
+                // 7. Финализация UI
                 removeTypingIndicator();
                 sendBtn.disabled = false;
-                renderChat(state.currentChatId); 
+                renderCurrentChat(); 
+                saveDataToLocalStorage(); // Сохраняем итоговый результат в Local Storage
             }
         }
         
-        /** Настройка прослушивания чатов Firestore. */
-        function setupFirestoreListeners() {
-            if (!window.db || !window.userId) return;
+        // --- Initialization ---
 
-            // 1. Прослушивание списка чатов
-            const chatsQuery = query(getChatsCollectionRef(), orderBy("createdAt", "desc"), limit(20));
-            onSnapshot(chatsQuery, (snapshot) => {
-                chatList.innerHTML = '';
-                chatList.appendChild(newChatBtn); 
-                
-                let firstChatId = null;
-                
-                snapshot.forEach((doc) => {
-                    const chatId = doc.id;
-                    const data = doc.data();
+        function initializeApp() {
+            // 1. Загрузка данных из Local Storage
+            loadDataFromLocalStorage();
+            
+            // 2. Применение настроек
+            applySettings();
 
-                    state.chats[chatId] = state.chats[chatId] || { title: data.title, messages: [] };
-                    state.chats[chatId].title = data.title;
-                    
-                    if (!firstChatId) firstChatId = chatId;
-                    
-                    // Создание/обновление элемента списка
-                    let chatItem = document.querySelector(`.chat-item[data-id="${chatId}"]`);
-                    if (!chatItem) {
-                        chatItem = document.createElement('button');
-                        chatItem.className = 'chat-item w-full text-left p-3 rounded-xl transition-colors truncate hover:bg-[var(--layer3)] active:scale-[0.98]';
-                        chatItem.dataset.id = chatId;
-                        chatItem.onclick = () => selectChat(chatId);
-                        chatList.appendChild(chatItem);
-                    }
-                    chatItem.innerHTML = `<i class="fa-solid fa-message mr-2 text-[var(--accent)]"></i> ${data.title}`;
-                    
-                    // 2. Прослушивание сообщений для каждого чата
-                    if (!state.chats[chatId].listener) {
-                        const messagesQuery = query(getMessagesCollectionRef(chatId), orderBy("timestamp", "asc"));
-                        state.chats[chatId].listener = onSnapshot(messagesQuery, (msgSnapshot) => {
-                            const messages = [];
-                            msgSnapshot.forEach(msgDoc => {
-                                messages.push(msgDoc.data());
-                            });
-
-                            state.chats[chatId].messages = messages.filter(m => m.content); 
-                            
-                            // Перерисовка, только если это текущий активный чат
-                            if (chatId === state.currentChatId) {
-                                renderChat(chatId);
-                            }
-                        });
-                    }
-                });
-                
-                // Инициализация текущего чата
-                if (!state.currentChatId && firstChatId) {
-                    selectChat(firstChatId);
-                } else if (!state.currentChatId && !firstChatId) {
-                     // Если чатов нет, создаем новый
-                     createNewChat();
-                }
-
-            }, (error) => {
-                console.error("Error listening to chats:", error);
-                showToast("Ошибка загрузки списка чатов.", 'danger');
-            });
+            // 3. Рендеринг списка чатов и выбор активного чата
+            renderChatList();
         }
 
-
-        // --- Event Listeners and Initialization ---
-
-        window.addEventListener('authReady', () => {
-            loadSettings();
-            setupFirestoreListeners();
-        });
+        // --- Event Listeners ---
 
         // Боковое меню для мобильных
         menuBtn.onclick = () => toggleSidebar(true);
@@ -762,8 +681,8 @@
         
         // Автоматическое изменение высоты textarea
         promptInput.addEventListener('input', function() {
-            this.style.height = '48px'; // min-height is 48px (h-12)
-            this.style.height = Math.min(this.scrollHeight, 160) + 'px'; // 160px is max-h-40
+            this.style.height = '48px'; 
+            this.style.height = Math.min(this.scrollHeight, 160) + 'px'; 
         });
 
         // Кнопка "Новый чат"
@@ -778,7 +697,7 @@
             saveSettings();
         };
         settingsPanel.addEventListener('click', (e) => {
-            if (e.target === settingsPanel) { // Закрыть при клике вне модального окна
+            if (e.target === settingsPanel) { 
                 settingsPanel.classList.add('opacity-0', 'pointer-events-none');
                 saveSettings();
             }
@@ -787,29 +706,31 @@
         // Переключение режимов (кнопок)
         modeButtons.forEach(btn => {
             btn.addEventListener('click', () => {
-                const newMode = btn.dataset.mode;
-                const newModel = btn.dataset.model;
-
-                state.settings.currentMode = newMode;
-                state.settings.currentModel = newModel;
+                state.settings.currentMode = btn.dataset.mode;
+                state.settings.currentModel = btn.dataset.model;
                 
                 applySettings(); 
-                saveSettings(); // Сохраняем в DB
-                
-                // Перерисовка текущего чата для обновления стартового промпта
-                if (state.currentChatId) renderChat(state.currentChatId); 
+                saveSettings(); 
+                if (state.currentChatId) renderCurrentChat(); 
             });
         });
 
-        // Применение настроек при изменении в селекте
-        modelSelect.addEventListener('change', () => {
-             saveSettings(); 
-             if (state.currentChatId) renderChat(state.currentChatId); 
-        });
-
-        // Применение настроек при изменении чекбоксов
-        [starsToggle, notifyToggle].forEach(el => el.addEventListener("change", saveSettings));
+        // Применение настроек при изменении в селекте и чекбоксах
+        [modelSelect, starsToggle, notifyToggle].forEach(el => el.addEventListener("change", saveSettings));
         
+        // --- Запуск ---
+        // Инициализация Telegram WebApp
+        if (window.Telegram && window.Telegram.WebApp) {
+            window.Telegram.WebApp.ready();
+            window.Telegram.WebApp.expand();
+            window.Telegram.WebApp.setHeaderColor('#000000'); 
+            window.Telegram.WebApp.setBackgroundColor('#000000');
+        } else {
+            console.warn("Telegram WebApp object not found. Running in standalone mode.");
+        }
+
+        initializeApp();
+
     </script>
 </body>
 </html>
