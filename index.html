@@ -3,721 +3,867 @@
 <head>
   <meta charset="UTF-8" />
   <title>Burini Smart — ИИ‑чат</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
-  <meta name="theme-color" content="#000000">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    // Tailwind perf: reduce preflight when possible
-    tailwind.config = {
-      corePlugins: {
-        preflight: true,
-      }
-    }
-  </script>
-  <script src="https://kit.fontawesome.com/a7d8ec7750.js" crossorigin="anonymous"></script>
-
+  <!-- Mobile-first viewport for Telegram web apps -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
   <style>
+    /* ===== Design system: Dark theme optimized for mobile & Telegram Mini Apps ===== */
     :root {
       --bg: #000000;
-      --layer1: rgba(10, 10, 15, 0.95);
-      --layer2: rgba(25, 25, 30, 0.90);
-      --layer3: rgba(40, 40, 50, 0.85);
+      --layer1: rgba(18, 18, 18, 0.95);
+      --layer2: rgba(30, 30, 30, 0.90);
+      --layer3: rgba(45, 45, 45, 0.85);
       --text: #ffffff;
-      --muted: #a0a0b0;
-      --accent: #f49c00;
-      --border: rgba(255, 255, 255, 0.08);
+      --muted: #b0b0b0;
+      --primary: #ffffff;
+      --accent: #ffb34f;
+      --border: rgba(255, 255, 255, 0.1);
       --ok: #00d084;
       --danger: #ff4757;
-      --radius: 1rem;
-      --shadow-deep: 0 10px 30px rgba(0,0,0,0.8);
-      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --shadow: 0 10px 40px rgba(0,0,0,.5);
+      --radius: 12px;
+      --fadeIn: fadeIn .2s ease both;
+      --slideIn: slideIn .3s ease both;
       --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --tap: 44px; /* min-touch target */
+    }
+    [data-theme="light"] {
+      --bg: #f7fafc;
+      --layer1: rgba(255,255,255,0.95);
+      --layer2: rgba(245,245,250,0.95);
+      --layer3: rgba(230,230,235,0.9);
+      --text: #1f2430;
+      --muted: #657089;
+      --primary: #3b66ff;
+      --accent: #ffb34f;
+      --border: rgba(59,102,255,0.1);
+      --ok: #17a673;
+      --danger: #d63f3f;
+      --shadow: 0 8px 20px rgba(0,0,0,.12);
     }
 
     html, body {
       height: 100%;
-      background: var(--bg);
+      background:
+        radial-gradient(900px 420px at 12% 0%, rgba(92, 106, 255, 0.10), transparent 60%),
+        radial-gradient(700px 340px at 88% 100%, rgba(255, 190, 120, 0.12), transparent 60%),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      margin: 0;
+      overflow: hidden;
     }
 
-    body {
-      font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      color: var(--text);
-      overflow: hidden; /* жестко: т.к. есть собственный скролл контейнера */
+    /* Reduce animation for performance */
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
+
+    /* Minimal scrollbar styling */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--accent) var(--layer3);
+    }
+    *::-webkit-scrollbar { width: 6px; height: 6px; }
+    *::-webkit-scrollbar-thumb { background-color: var(--accent); border-radius: 10px; }
+    *::-webkit-scrollbar-track { background: var(--layer3); }
+
+    /* Layout: Mobile-first single-column; sidebar becomes overlay drawer on mobile */
+    .app {
       position: relative;
+      z-index: 1;
+      height: 100vh;
+      height: calc(100vh - var(--safe-bottom));
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    .header {
+      padding: calc(8px + var(--safe-top)) 12px 8px 12px;
+      display: flex; align-items: center; gap: 8px;
+      backdrop-filter: saturate(180%) blur(16px);
+      -webkit-backdrop-filter: saturate(180%) blur(16px);
+      background: var(--layer1);
+      border-bottom: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      z-index: 5;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+    .badge { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, var(--text) 0%, var(--accent) 100%); box-shadow: 0 4px 16px rgba(255, 179, 79, 0.3); display: flex; align-items: center; justify-content: center; }
+    .badge::before { content: "⚡"; font-size: 16px; }
+    .logo-text { font-weight: 700; font-size: 18px; letter-spacing: -0.2px; }
+
+    .search-container { flex: 1; min-width: 0; }
+    .search-input {
+      width: 100%; padding: 10px 12px; border-radius: 12px;
+      border: 1px solid var(--border); background: var(--layer2); color: var(--text);
+      outline: none; font-family: inherit; font-size: 14px;
+      transition: border-color .2s ease, box-shadow .2s ease;
+    }
+    .search-input:focus { box-shadow: 0 0 0 2px var(--accent) inset; border-color: var(--accent); }
+
+    .toolbar { display: flex; gap: 6px; }
+    .btn {
+      display:inline-flex; align-items:center; justify-content:center; gap:6px;
+      padding: 10px 12px; min-height: var(--tap);
+      border-radius: 12px; border:1px solid var(--border); background: var(--layer2);
+      color: var(--text); cursor:pointer; transition: transform .06s ease, opacity .2s ease, box-shadow .2s ease;
+      text-decoration: none; font-size: 16px;
       -webkit-tap-highlight-color: transparent;
     }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(0,0,0,.15); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+    .btn.danger { background: var(--danger); border-color: var(--danger); color: var(--text); font-weight: 600; }
+    .btn.ghost { background: transparent; }
+    .btn.icon { width: var(--tap); padding: 0; }
 
-    #stars {
+    .mode-buttons { display: none; } /* Hide mode buttons on small screens; moved to settings */
+    @media (min-width: 900px) {
+      .mode-buttons { display: flex; gap: 6px; margin-left: 6px; }
+      .mode-btn { display:flex; align-items:center; gap:6px; padding:8px 10px; border-radius: 16px; border:1px solid var(--border); background: transparent; color: var(--muted); cursor:pointer; font-size: 14px; }
+      .mode-btn.active { background: rgba(255, 179, 79, 0.1); color: var(--accent); border-color: var(--accent); }
+      .mode-icon { font-size: 16px; }
+    }
+
+    /* Sidebar as drawer for mobile */
+    .sidebar {
       position: fixed;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      background:
-        radial-gradient(2px 2px at 20px 30px, var(--text), rgba(0,0,0,0)),
-        radial-gradient(2px 2px at 40px 70px, var(--muted), rgba(0,0,0,0)),
-        radial-gradient(1px 1px at 50px 160px, var(--text), rgba(0,0,0,0)),
-        radial-gradient(2px 2px at 90px 40px, var(--muted), rgba(0,0,0,0)),
-        radial-gradient(1px 1px at 100px 100px, var(--text), rgba(0,0,0,0));
-      background-repeat: repeat;
-      background-size: 200px 200px;
-      pointer-events: none;
-      z-index: 0;
-      animation: moveStars 180s linear infinite;
-      opacity: 0.18;
-      will-change: transform;
+      top: 0; left: -100%;
+      width: 86vw; max-width: 360px; height: 100%;
+      background: var(--layer1); border-right: 1px solid var(--border);
+      backdrop-filter: saturate(180%) blur(16px);
+      -webkit-backdrop-filter: saturate(180%) blur(16px);
+      transition: left .25s ease;
+      padding: calc(10px + var(--safe-top)) 12px 12px;
+      overflow-y: auto; z-index: 10;
+      box-shadow: var(--shadow);
     }
+    .sidebar.open { left: 0; animation: var(--slideIn); }
+    .side-header { display:flex; align-items:center; justify-content:space-between; font-weight:600; margin-bottom:8px; }
+    .chat-list { display:flex; flex-direction:column; gap:8px; }
+    .chat-item {
+      display:flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid var(--border);
+      border-radius: 12px; background: var(--layer2); cursor:pointer; animation: var(--fadeIn);
+      box-shadow: 0 4px 8px rgba(0,0,0,.1);
+    }
+    .chat-item.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255, 179, 79, 0.3) inset; background: rgba(255, 179, 79, 0.05); }
+    .chat-title { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .chat-actions { display:flex; gap:6px; }
 
-    @keyframes moveStars {
-      from { background-position: 0 0; }
-      to { background-position: 1000px 1000px; }
-    }
-
-    #app-container {
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      position: relative;
-      z-index: 10;
-    }
-
-    /* Sidebar */
-    #sidebar {
-      transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1);
-      transform: translateX(-100%);
-      z-index: 50;
-      box-shadow: var(--shadow-deep);
-      will-change: transform;
-      backface-visibility: hidden;
-    }
-    #sidebar.open {
-      transform: translateX(0);
-    }
-
-    header {
-      box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-      background-color: var(--layer1);
-      padding-top: calc(0.75rem + var(--safe-top));
-    }
-
-    #messages-container {
-      overscroll-behavior: contain;
+    /* Chat area */
+    .chat {
+      display: flex; flex-direction: column;
+      overflow-y: auto; padding: 12px; gap: 12px;
       scroll-behavior: smooth;
-      -webkit-overflow-scrolling: touch;
     }
 
-    #input-panel {
-      box-shadow: 0 -4px 15px rgba(0,0,0,0.7);
-      background: linear-gradient(to top, var(--layer1), rgba(10,10,15,0.86));
-      padding-bottom: calc(1rem + var(--safe-bottom));
+    /* Composer sticky at bottom with safe-area padding */
+    .composer {
+      display: flex; flex-direction: column; gap: 8px;
+      padding: 10px 12px calc(10px + var(--safe-bottom));
+      border-top: 1px solid var(--border); background: var(--layer1);
+      backdrop-filter: saturate(180%) blur(16px);
+      -webkit-backdrop-filter: saturate(180%) blur(16px);
+      z-index: 5;
     }
+    .composer-main {
+      display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: end;
+    }
+    .composer textarea {
+      width: 100%; resize: none; min-height: 48px; max-height: 40vh;
+      border-radius: 12px; border: 1px solid var(--border);
+      background: var(--layer2); color: var(--text);
+      padding: 10px 12px; outline: none; font-family: inherit; font-size: 16px;
+      transition: box-shadow .2s ease, border-color .2s ease; box-sizing: border-box;
+    }
+    .composer textarea:focus { box-shadow: 0 0 0 2px rgba(255, 179, 79, 0.2) inset; border-color: var(--accent); }
+    .btn.upload { padding: 0 10px; font-size: 18px; border-radius: 12px; min-width: var(--tap); min-height: var(--tap); display: flex; align-items: center; justify-content: center; }
 
-    /* Chat bubble */
-    .chat-bubble {
-      max-width: 88%;
-      border-radius: var(--radius);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    .file-preview { display: none; }
+    .file-preview.open {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; background: var(--layer2); border-radius: 10px;
+      border: 1px solid var(--border); font-size: 14px;
+    }
+    .file-preview .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-preview .remove-btn { color: var(--danger); cursor: pointer; }
+
+    /* Bubbles */
+    .bubble {
+      max-width: 92%;
       word-wrap: break-word;
-      white-space: pre-wrap;
-    }
-    .chat-bubble code {
-      background-color: var(--layer3);
-      color: var(--accent);
-      padding: 0.1rem 0.4rem;
-      border-radius: 0.4rem;
-      font-size: 0.875rem;
-    }
-
-    .mode-btn {
-      padding: 0.5rem 1rem;
-      border-radius: 1rem;
-      transition: all 0.16s ease;
-      font-size: 0.875rem;
-    }
-    .mode-btn:not(.active) {
-      background-color: var(--layer2);
-      color: var(--muted);
+      overflow-wrap: break-word;
+      padding: 12px 14px;
+      border-radius: 16px;
+      line-height: 1.6;
       border: 1px solid var(--border);
+      background: var(--layer2);
+      box-shadow: 0 3px 10px rgba(0,0,0,.25);
+      animation: var(--fadeIn);
     }
-    .mode-btn.active {
-      background-color: var(--accent);
-      color: var(--layer1);
-      font-weight: 700;
-      box-shadow: 0 0 15px rgba(244, 156, 0, 0.4);
+    .bubble.system { border-left: 4px solid var(--ok); opacity: .95; }
+    .bubble.user {
+      margin-left: auto;
+      background: linear-gradient(180deg, rgba(255, 179, 79, 0.14), rgba(255, 179, 79, 0.08));
+      border-left: 4px solid var(--accent);
+      border-top-right-radius: 6px;
     }
+    .bubble.assistant {
+      margin-right: auto;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.04));
+      border-left: 4px solid var(--primary);
+      border-top-left-radius: 6px;
+    }
+    .meta { font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+    .content { white-space: pre-wrap; line-height: 1.6; }
+    .content img { max-width: 100%; height: auto; border-radius: 8px; margin-top: 8px; border: 1px solid var(--border); }
 
-    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
-    .scrollbar-thin::-webkit-scrollbar-track { background: var(--layer1); }
-    .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--layer3); border-radius: 3px; }
-    .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: var(--accent); }
-
-    #settings-panel {
-      transition: opacity 0.2s ease, transform 0.3s;
-      will-change: opacity, transform;
-      backface-visibility: hidden;
+    /* Markdown */
+    .content strong { font-weight: 700; color: var(--accent); }
+    .content em { font-style: italic; }
+    .content code {
+      background: rgba(255, 255, 255, 0.12);
+      padding: 2px 6px; border-radius: 4px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; font-size: 0.9em;
     }
-
-    @media (min-width: 768px) {
-      #sidebar {
-        position: static;
-        transform: translateX(0);
-        width: 280px;
-      }
-      #app-container {
-        flex-direction: row;
-      }
-      #menu-btn, #sidebar-overlay {
-        display: none !important;
-      }
+    .code-block-wrapper { position: relative; margin: 10px 0; border-radius: 8px; overflow: hidden; box-shadow: 0 3px 9px rgba(0,0,0,.2); }
+    .code-block-wrapper pre { margin: 0; padding: 14px 10px; background: var(--layer3); overflow-x: auto; font-size: 14px; line-height: 1.4; border: none; white-space: pre; }
+    .code-block-wrapper pre code { background: none; padding: 0; font-size: 1em; white-space: pre; display: block; }
+    .code-block-wrapper .copy-btn {
+      position: absolute; top: 6px; right: 6px; padding: 4px 8px; font-size: 12px;
+      color: var(--muted); background: rgba(0,0,0,.5); border: 1px solid var(--border);
+      border-radius: 6px; cursor: pointer; opacity: 0.85; transition: opacity .2s, background .2s;
     }
+    .code-block-wrapper .copy-btn:hover { opacity: 1; background: var(--layer1); color: var(--text); }
 
-    /* Tap-friendly buttons */
-    button, select, textarea {
-      touch-action: manipulation;
+    .content blockquote {
+      border-left: 4px solid var(--primary);
+      margin: 8px 0; padding-left: 12px; color: var(--muted);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 8px 12px; border-radius: 8px;
     }
+    .content ul, .content ol { margin: 6px 0; padding-left: 18px; }
+    .content li { margin: 3px 0; }
+    .content h1, .content h2, .content h3 { margin: 12px 0 8px; font-weight: 700; color: var(--primary); }
+    .content h1 { font-size: 1.4em; }
+    .content h2 { font-size: 1.25em; }
+    .content h3 { font-size: 1.1em; }
+    .content p { margin: 6px 0; }
+
+    /* Drawer settings (mobile) */
+    .settings {
+      position: fixed; bottom: 0; right: 0; left: 0;
+      max-height: 78vh; transform: translateY(100%);
+      background: var(--layer1); border-top: 1px solid var(--border);
+      backdrop-filter: saturate(180%) blur(16px);
+      -webkit-backdrop-filter: saturate(180%) blur(16px);
+      transition: transform .25s ease;
+      padding: 12px 12px calc(12px + var(--safe-bottom));
+      overflow-y: auto; z-index: 12; box-shadow: var(--shadow);
+      border-top-left-radius: 14px; border-top-right-radius: 14px;
+    }
+    .settings.open { transform: translateY(0); animation: var(--slideIn); }
+    .settings h3 { margin: 8px 0 8px; font-size: 15px; color: var(--muted); font-weight: 600; }
+
+    .row { display:flex; align-items:center; justify-content:space-between; gap: 10px; margin:8px 0; }
+    select, input[type="text"], textarea.settings-input {
+      width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--layer2); color: var(--text); outline: none; font-family: inherit;
+      transition: border-color .2s ease, box-shadow .2s ease; font-size: 14px;
+    }
+    select:focus, input[type="text"]:focus, textarea.settings-input:focus { box-shadow: 0 0 0 2px rgba(255, 179, 79, 0.2) inset; border-color: var(--accent); }
+    input[type="checkbox"] { transform: scale(1.2); }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: calc(16px + var(--safe-bottom)); right: 16px;
+      padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border);
+      background: var(--layer1); box-shadow: var(--shadow); opacity: 0; transform: translateY(8px);
+      transition: all .2s ease; pointer-events: none; z-index: 20; font-weight: 500; border-left: 3px solid var(--accent);
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* Stars can be disabled on mobile for performance */
+    .stars { position: fixed; inset: 0; pointer-events: none; opacity: .12; z-index: 0; display: none; }
+    @keyframes twinkle { 0%,100%{opacity:.12} 50%{opacity:.22} }
+
+    /* Animations */
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: translateY(0);} }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(8px);} to { opacity: 1; transform: translateY(0);} }
   </style>
 </head>
+<body data-theme="dark">
+  <div class="stars" id="stars"></div>
 
-<body class="bg-black">
-  <div id="stars"></div>
-
-  <div id="app-container">
-    <!-- Мобильное затемнение -->
-    <div id="sidebar-overlay"
-         class="fixed top-0 left-0 w-full h-full bg-black/60 z-40 opacity-0 pointer-events-none transition-opacity duration-200"
-         onclick="toggleSidebar(false)"></div>
-
-    <!-- Sidebar -->
-    <aside id="sidebar" class="fixed top-0 left-0 w-4/5 max-w-xs md:static bg-[var(--layer1)] flex flex-col border-r border-[var(--border)] h-full">
-      <div class="p-4 flex items-center justify-between border-b border-[var(--border)]">
-        <h2 class="text-2xl font-black text-[var(--accent)] tracking-widest">BURINI</h2>
-        <button id="close-sidebar-btn" class="md:hidden text-white hover:text-[var(--accent)] p-2 rounded-full transition-colors">
-          <i class="fa-solid fa-xmark text-2xl"></i>
-        </button>
+  <div class="app" id="app">
+    <div class="header">
+      <button class="btn icon" id="drawerBtn" title="История">☰</button>
+      <div class="logo">
+        <div class="badge"></div>
+        <span class="logo-text">Burini</span>
       </div>
-
-      <div id="chat-list" class="flex-grow overflow-y-auto space-y-2 p-3 scrollbar-thin will-change-transform">
-        <button id="new-chat-btn" class="w-full bg-[var(--layer2)] text-white border-2 border-[var(--border)] hover:bg-[var(--layer3)] transition-all p-3 rounded-xl font-medium mb-3 shadow-lg active:scale-[0.98]">
-          <i class="fa-solid fa-plus mr-2 text-[var(--accent)]"></i> Начать новый чат
-        </button>
-        <!-- Чаты рендерятся динамически -->
+      <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Поиск Ctrl+K" class="search-input" />
       </div>
-
-      <!-- Настройки -->
-      <div class="p-4 border-t border-[var(--border)]">
-        <div class="text-[var(--muted)] text-xs mb-2 truncate">
-          Статус:
-          <span id="display-user-id" class="font-mono text-white text-sm">Локальный</span>
-        </div>
-        <button id="settings-btn" class="w-full text-left p-3 rounded-xl hover:bg-[var(--layer3)] transition-colors text-white flex items-center justify-between">
-          <span class="font-medium"><i class="fa-solid fa-cog mr-2 text-[var(--accent)]"></i> Настройки</span>
-          <i class="fa-solid fa-chevron-right text-xs"></i>
-        </button>
-      </div>
-    </aside>
-
-    <!-- Main -->
-    <main id="chat-main" class="flex-grow flex flex-col overflow-hidden">
-      <header class="p-3 flex items-center justify-between sticky top-0 z-30 border-b border-[var(--border)]">
-        <div class="flex items-center space-x-3">
-          <button id="menu-btn" class="md:hidden text-white hover:text-[var(--accent)] p-2 rounded-full transition-colors">
-            <i class="fa-solid fa-bars text-xl"></i>
-          </button>
-          <h1 id="chat-title" class="text-xl font-bold truncate max-w-[180px] sm:max-w-full">Burini AI Chat</h1>
-        </div>
-        <span id="user-badge" class="text-xs font-mono bg-[var(--accent)] text-black px-3 py-1 rounded-full font-bold shadow-md">LOCAL MODE</span>
-      </header>
-
-      <!-- Сообщения -->
-      <div id="messages-container" class="flex-grow overflow-y-auto p-4 space-y-5 scrollbar-thin">
-        <!-- Рендер сообщений -->
-      </div>
-
-      <!-- Ввод -->
-      <div id="input-panel" class="p-4 border-t border-[var(--border)]">
-        <!-- Режимы -->
-        <div id="mode-selector" class="flex flex-wrap gap-2 mb-3 justify-center p-2 rounded-xl bg-black/50 border border-[var(--border)]">
-          <button class="mode-btn" data-mode="smart" data-model="x-ai/grok-4-fast:free">
-            <span class="mode-text">🚀 Smart Chat</span>
-          </button>
-          <button class="mode-btn" data-mode="vision" data-model="deepseek/deepseek-chat-v3.1:free">
-            <span class="mode-text">👁️ Vision</span>
-          </button>
-          <button class="mode-btn" data-mode="studio" data-model="x-ai/grok-4-fast:free">
-            <span class="mode-text">💻 Code Studio</span>
-          </button>
-        </div>
-
-        <!-- Поле ввода -->
-        <div class="flex items-end space-x-2">
-          <textarea id="prompt-input"
-                    class="flex-grow bg-[var(--layer2)] text-white placeholder-gray-500 rounded-xl p-3 resize-none focus:ring-2 focus:ring-[var(--accent)] focus:outline-none max-h-40 overflow-y-auto text-base border border-[var(--border)]"
-                    rows="1"
-                    maxlength="8000"
-                    placeholder="Ваше сообщение..."></textarea>
-          <button id="send-btn" class="bg-[var(--accent)] text-black w-12 h-12 rounded-full flex items-center justify-center transition-all disabled:opacity-50 hover:bg-yellow-500 active:scale-90 shadow-xl focus:ring-2 focus:ring-[var(--accent)]">
-            <i class="fa-solid fa-paper-plane text-xl"></i>
-          </button>
-        </div>
-      </div>
-    </main>
-
-    <!-- Панель настроек -->
-    <div id="settings-panel" class="fixed inset-0 bg-black/90 backdrop-blur-sm z-[100] transform transition-opacity duration-200 opacity-0 pointer-events-none flex items-center justify-center">
-      <div class="bg-[var(--layer1)] p-6 rounded-2xl shadow-2xl w-full max-w-sm m-4 transform translate-y-0 transition-transform duration-300 border border-[var(--border)]">
-        <h3 class="text-2xl font-bold mb-6 text-[var(--accent)] border-b border-[var(--border)] pb-2">Настройки приложения</h3>
-
-        <div class="space-y-5">
-          <!-- Основная модель -->
-          <div>
-            <label for="model-select" class="block text-white mb-2 font-medium">Основная модель (по умолчанию)</label>
-            <select id="model-select" class="w-full bg-[var(--layer2)] text-white p-3 rounded-xl border border-[var(--border)] focus:ring-[var(--accent)] focus:border-[var(--accent)]">
-              <option value="x-ai/grok-4-fast:free">Grok-4 Fast (Быстрый)</option>
-              <option value="deepseek/deepseek-chat-v3.1:free">DeepSeek (Vision/Code)</option>
-            </select>
-          </div>
-
-          <!-- Пользовательский системный промпт -->
-          <div>
-            <label for="user-system-prompt" class="block text-white mb-2 font-medium">Пользовательский системный промпт (опционально)</label>
-            <textarea id="user-system-prompt"
-                      class="w-full bg-[var(--layer2)] text-white p-3 rounded-xl border border-[var(--border)] focus:ring-[var(--accent)] focus:border-[var(--accent)]"
-                      rows="3"
-                      maxlength="4000"
-                      placeholder="Например: 'Отвечай подробно и добавляй примеры. Используй русский язык.'"></textarea>
-            <p class="text-[var(--muted)] text-xs mt-1">Этот промпт добавляется вслед за базовым системным промптом.</p>
-          </div>
-
-          <!-- Космический фон -->
-          <div class="flex justify-between items-center bg-[var(--layer2)] p-3 rounded-xl border border-[var(--border)]">
-            <label for="stars-toggle" class="text-white font-medium">Космический фон</label>
-            <input type="checkbox" id="stars-toggle" class="h-5 w-5 text-[var(--accent)] rounded focus:ring-[var(--accent)] bg-gray-600 border-gray-700" checked>
-          </div>
-
-          <!-- Уведомления -->
-          <div class="flex justify-between items-center bg-[var(--layer2)] p-3 rounded-xl border border-[var(--border)]">
-            <label for="notify-toggle" class="text-white font-medium">Показывать уведомления</label>
-            <input type="checkbox" id="notify-toggle" class="h-5 w-5 text-[var(--accent)] rounded focus:ring-[var(--accent)] bg-gray-600 border-gray-700" checked>
-          </div>
-        </div>
-
-        <button id="close-settings-btn" class="mt-8 w-full bg-[var(--accent)] text-black p-3 rounded-xl font-bold hover:opacity-90 transition-opacity active:scale-[0.98] shadow-md">
-          Закрыть и сохранить
-        </button>
+      <div class="toolbar">
+        <button class="btn icon" id="newChatBtn" title="Новый чат">💬</button>
+        <button class="btn icon" id="settingsBtn" title="Настройки">⚙</button>
       </div>
     </div>
 
-    <!-- Toast -->
-    <div id="toast-container" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-[1000] w-full max-w-xs px-4"></div>
+    <aside class="sidebar" id="sidebar">
+      <div class="side-header">
+        <div>История</div>
+        <button class="btn icon" id="closeDrawerBtn" title="Закрыть">✕</button>
+      </div>
+      <div class="chat-list" id="chatList"></div>
+    </aside>
+
+    <main class="chat" id="chat"></main>
+
+    <div class="composer">
+      <div class="file-preview" id="filePreview"></div>
+      <div class="composer-main">
+        <input type="file" id="fileInput" accept=".txt,.md,.json,.xml,.html,.css,.js,.py,.cs,image/png,image/jpeg,image/webp" style="display:none" />
+        <button class="btn upload" id="uploadBtn" title="Загрузить файл">📎</button>
+        <textarea id="input" placeholder="Напиши сообщение... Shift+Enter — новая строка"></textarea>
+        <button class="btn primary" id="sendBtn">Отправить</button>
+      </div>
+    </div>
   </div>
 
-  <!-- Telegram WebApp Script -->
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <div class="settings" id="settingsPanel">
+    <h3>Модель</h3>
+    <select id="modelSelect">
+      <option value="burini-smart">Burini Fast</option>
+      <option value="burini-smart-vision">Burini Think</option>
+      <option value="burini-studio">Burini Code</option>
+    </select>
 
-  <script type="module">
-    // Константы
-    const CHATS_STORAGE_KEY = 'burini_chats_v2';
-    const SETTINGS_STORAGE_KEY = 'burini_settings_v2';
-    const API_URL = '/api/chat';
+    <h3 style="margin-top:10px;">Интерфейс</h3>
+    <div class="row"><label>Тёмная тема</label><input type="checkbox" id="themeToggle" checked /></div>
+    <div class="row"><label>Звёздный фон</label><input type="checkbox" id="starsToggle" /></div>
+    <div class="row"><label>Уведомления</label><input type="checkbox" id="notifyToggle" checked /></div>
 
-    // DOM
-    const sidebar = document.getElementById('sidebar');
-    const sidebarOverlay = document.getElementById('sidebar-overlay');
-    const menuBtn = document.getElementById('menu-btn');
-    const closeSidebarBtn = document.getElementById('close-sidebar-btn');
-    const messagesContainer = document.getElementById('messages-container');
-    const promptInput = document.getElementById('prompt-input');
-    const sendBtn = document.getElementById('send-btn');
-    const chatList = document.getElementById('chat-list');
-    const newChatBtn = document.getElementById('new-chat-btn');
-    const chatTitleEl = document.getElementById('chat-title');
-    const settingsBtn = document.getElementById('settings-btn');
-    const settingsPanel = document.getElementById('settings-panel');
-    const closeSettingsBtn = document.getElementById('close-settings-btn');
-    const modelSelect = document.getElementById('model-select');
-    const modeButtons = document.querySelectorAll('.mode-btn');
-    const starsToggle = document.getElementById('stars-toggle');
-    const notifyToggle = document.getElementById('notify-toggle');
-    const displayUserId = document.getElementById('display-user-id');
-    const userSystemPromptEl = document.getElementById('user-system-prompt');
+    <h3 style="margin-top:10px;">Промпт пользователя (добавляется к системному)</h3>
+    <textarea id="userPromptInput" class="settings-input" rows="3" placeholder="Опционально: добавь свой системный промпт для чата"></textarea>
+    <div class="row">
+      <button class="btn" id="saveUserPromptBtn">Сохранить промпт</button>
+      <button class="btn danger" id="clearUserPromptBtn">Очистить</button>
+    </div>
+
+    <h3 style="margin-top:10px;">Данные</h3>
+    <div class="row"><label>Удалить все чаты</label><button class="btn danger" id="clearChatsBtn">Очистить</button></div>
+    <div class="row"><label>Удалить учётку</label><button class="btn danger" id="deleteAccountBtn">Удалить</button></div>
+    <div class="row"><label>Открыть историю</label><button class="btn" id="openHistoryBtn">История</button></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // Telegram WebApp integration (safe)
+    (function initTelegramWebApp(){
+      try {
+        if (window.Telegram && window.Telegram.WebApp) {
+          const w = window.Telegram.WebApp;
+          w.ready();
+          // Use theme params if available
+          const tp = w.themeParams || {};
+          if (tp.bg_color) document.body.style.setProperty('--bg', tp.bg_color);
+          if (tp.text_color) document.body.style.setProperty('--text', tp.text_color);
+        }
+      } catch (e) { /* ignore */ }
+    })();
+
+    // Storage
+    const store = {
+      key: "burini_smart_store_final",
+      load() {
+        try {
+          return JSON.parse(localStorage.getItem(this.key)) || { chats: [], settings: { userPrompt: "" } };
+        } catch {
+          return { chats: [], settings: { userPrompt: "" } };
+        }
+      },
+      save(d) { localStorage.setItem(this.key, JSON.stringify(d)); },
+      clear() { localStorage.removeItem(this.key); },
+    };
 
     // State
     const state = {
+      data: store.load(),
       currentChatId: null,
+      currentMode: 'smart',
+      AFile: null,
       isTyping: false,
-      settings: {
-        starsEnabled: true,
-        currentModel: 'x-ai/grok-4-fast:free',
-        currentMode: 'smart',
-        notifications: true,
-        userSystemPrompt: '',
-        tgUserId: null
+      get settings() { return this.data.settings || {}; },
+      setSetting(k,v){ this.data.settings[k]=v; store.save(this.data); },
+      addChat(initialTitle = "Новая сессия") {
+        const id = "chat_" + Date.now();
+        this.data.chats.unshift({ id, title: initialTitle, messages: [] });
+        this.currentChatId = id; store.save(this.data);
+        renderChatList(); renderChat();
+        inputEl.focus();
       },
-      chats: {}, // {id: {title, createdAt, mode, messages:[]}}
+      currentChat(){ return this.data.chats.find(c=>c.id===this.currentChatId); },
+      renameCurrent(title) { const c=this.currentChat(); if(!c) return; c.title = title; store.save(this.data); renderChatList(); },
+      deleteChat(id) {
+        const idx = this.data.chats.findIndex(c => c.id === id);
+        if (idx >= 0) this.data.chats.splice(idx,1);
+        if (this.currentChatId === id) this.currentChatId = this.data.chats[0]?.id || null;
+        store.save(this.data); renderChatList(); renderChat();
+      },
+      addMessage(role, content){ const chat=this.currentChat(); if(!chat) return; chat.messages.push({ role, content, ts: Date.now() }); store.save(this.data); renderChat(); },
+      clearChats(){ this.data.chats=[]; this.currentChatId=null; store.save(this.data); renderChatList(); renderChat(); },
     };
 
-    // LocalStorage
-    function loadDataFromLocalStorage() {
-      try {
-        const storedChats = localStorage.getItem(CHATS_STORAGE_KEY);
-        if (storedChats) state.chats = JSON.parse(storedChats) || {};
-        const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
-        if (storedSettings) {
-          const parsed = JSON.parse(storedSettings) || {};
-          state.settings = { ...state.settings, ...parsed };
-        }
-      } catch (e) {
-        console.error('LocalStorage load error', e);
-        state.chats = {};
+    // Elements
+    const chatEl = document.getElementById("chat");
+    const chatListEl = document.getElementById("chatList");
+    const inputEl = document.getElementById("input");
+    const sendBtn = document.getElementById("sendBtn");
+    const newChatBtn = document.getElementById("newChatBtn");
+    const toastEl = document.getElementById("toast");
+    const starsEl = document.getElementById("stars");
+    const settingsBtn = document.getElementById("settingsBtn");
+    const settingsPanel = document.getElementById("settingsPanel");
+    const fileInput = document.getElementById("fileInput");
+    const uploadBtn = document.getElementById("uploadBtn");
+    const filePreviewEl = document.getElementById("filePreview");
+    const themeToggle = document.getElementById("themeToggle");
+    const starsToggle = document.getElementById("starsToggle");
+    const notifyToggle = document.getElementById("notifyToggle");
+    const clearChatsBtn = document.getElementById("clearChatsBtn");
+    const deleteAccountBtn = document.getElementById("deleteAccountBtn");
+    const modelSelect = document.getElementById("modelSelect");
+    const searchInput = document.getElementById("searchInput");
+    const userPromptInput = document.getElementById("userPromptInput");
+    const saveUserPromptBtn = document.getElementById("saveUserPromptBtn");
+    const clearUserPromptBtn = document.getElementById("clearUserPromptBtn");
+    const openHistoryBtn = document.getElementById("openHistoryBtn");
+    const drawerBtn = document.getElementById("drawerBtn");
+    const closeDrawerBtn = document.getElementById("closeDrawerBtn");
+    const sidebar = document.getElementById("sidebar");
+
+    // Supported files
+    const SUPPORTED_MIMES = {
+      image: ['image/png', 'image/jpeg', 'image/webp'],
+      text: ['text/plain', 'application/javascript', 'text/css', 'text/html', 'text/x-python', 'text/x-csharp', 'application/json', 'application/xml', 'text/markdown']
+    };
+    const MAX_IMAGE_SIZE_MB = 8;
+    const MAX_TEXT_SIZE_KB = 512;
+
+    // Drawer
+    drawerBtn.onclick = () => sidebar.classList.add("open");
+    closeDrawerBtn.onclick = () => sidebar.classList.remove("open");
+    openHistoryBtn.onclick = () => { sidebar.classList.add("open"); settingsPanel.classList.remove("open"); };
+
+    // Toast
+    let toastTimeout = null;
+    function showToast(t) {
+      clearTimeout(toastTimeout);
+      toastEl.textContent = t; toastEl.classList.add("show");
+      toastTimeout = setTimeout(()=>toastEl.classList.remove("show"), 2500);
+    }
+    function notifyUser(t) { if (state.settings.notify !== false) showToast(t); }
+
+    // Custom modals replaced by confirm()/prompt() equivalents where needed – keep UI minimal for mobile
+
+    // File handling
+    uploadBtn.onclick = () => fileInput.click();
+    fileInput.onchange = handleFileSelect;
+
+    function renderFilePreview() {
+      if (!state.AFile) {
+        filePreviewEl.classList.remove("open");
+        filePreviewEl.innerHTML = '';
+        return;
       }
-    }
+      filePreviewEl.classList.add("open");
+      const file = state.AFile;
 
-    function saveDataToLocalStorage() {
-      try {
-        localStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(state.chats));
-        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state.settings));
-      } catch (e) {
-        console.error('LocalStorage save error', e);
-      }
-    }
+      let icon = '';
+      if (file.type.startsWith('image/')) icon = '🖼️';
+      else if (file.type.includes('javascript') || file.type.includes('python') || file.type.includes('html') || file.type.includes('markdown')) icon = '💻';
+      else icon = '📄';
 
-    // Utils
-    function toggleSidebar(open) {
-      const overlay = sidebarOverlay;
-      if (open) {
-        sidebar.classList.add('open');
-        overlay.style.opacity = '1';
-        overlay.style.pointerEvents = 'auto';
-      } else {
-        sidebar.classList.remove('open');
-        overlay.style.opacity = '0';
-        overlay.style.pointerEvents = 'none';
-      }
-    }
-
-    function generateId() {
-      return 'chat_' + Date.now().toString(36) + Math.random().toString(36).slice(2);
-    }
-
-    function showToast(message, type = 'ok') {
-      if (!state.settings.notifications) return;
-      const container = document.getElementById('toast-container');
-      const toast = document.createElement('div');
-      toast.className = `p-3 my-2 rounded-xl text-sm font-medium shadow-2xl transition-all transform duration-300 opacity-0 translate-y-2 ${type === 'ok' ? 'bg-[var(--ok)] text-black' : 'bg-[var(--danger)] text-white'}`;
-      toast.textContent = message;
-      container.appendChild(toast);
-
-      requestAnimationFrame(() => {
-        toast.classList.remove('opacity-0', 'translate-y-2');
-        toast.classList.add('opacity-100', 'translate-y-0');
-      });
-
-      setTimeout(() => {
-        toast.classList.remove('opacity-100', 'translate-y-0');
-        toast.classList.add('opacity-0', 'translate-y-2');
-        toast.addEventListener('transitionend', () => toast.remove());
-      }, 2500);
-    }
-
-    function scrollToBottom() {
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-
-    function applySettings() {
-      document.getElementById('stars').style.display = state.settings.starsEnabled ? 'block' : 'none';
-      starsToggle.checked = state.settings.starsEnabled;
-      notifyToggle.checked = state.settings.notifications;
-      modelSelect.value = state.settings.currentModel;
-      userSystemPromptEl.value = state.settings.userSystemPrompt || '';
-
-      modeButtons.forEach(btn => {
-        const isSelected = btn.dataset.mode === state.settings.currentMode;
-        btn.classList.toggle('active', isSelected);
-      });
-    }
-
-    function saveSettings() {
-      state.settings.starsEnabled = starsToggle.checked;
-      state.settings.currentModel = modelSelect.value;
-      state.settings.notifications = notifyToggle.checked;
-      state.settings.userSystemPrompt = (userSystemPromptEl.value || '').trim();
-
-      applySettings();
-      saveDataToLocalStorage();
-      showToast('Настройки сохранены!');
-    }
-
-    // Chats
-    function createNewChat() {
-      const newChatId = generateId();
-      state.chats[newChatId] = {
-        id: newChatId,
-        title: 'Новый чат',
-        createdAt: Date.now(),
-        mode: state.settings.currentMode,
-        messages: []
-      };
-      saveDataToLocalStorage();
-      renderChatList();
-      selectChat(newChatId);
-    }
-
-    function selectChat(chatId) {
-      state.currentChatId = chatId;
-      renderCurrentChat();
-
-      document.querySelectorAll('.chat-item').forEach(el => {
-        el.classList.remove('bg-gray-700', 'font-bold');
-        if (el.dataset.id === chatId) el.classList.add('bg-gray-700', 'font-bold');
-      });
-
-      if (window.innerWidth < 768) toggleSidebar(false);
-    }
-
-    function renderChatList() {
-      chatList.innerHTML = '';
-      chatList.appendChild(newChatBtn);
-
-      const sorted = Object.keys(state.chats).sort((a, b) => state.chats[b].createdAt - state.chats[a].createdAt);
-      let firstChatId = null;
-
-      sorted.forEach(chatId => {
-        const chat = state.chats[chatId];
-        if (!firstChatId) firstChatId = chatId;
-
-        const btn = document.createElement('button');
-        btn.className = 'chat-item w-full text-left p-3 rounded-xl transition-colors truncate hover:bg-[var(--layer3)] active:scale-[0.98]';
-        btn.dataset.id = chatId;
-        btn.onclick = () => selectChat(chatId);
-        btn.innerHTML = `<i class="fa-solid fa-message mr-2 text-[var(--accent)]"></i> ${chat.title}`;
-        chatList.appendChild(btn);
-      });
-
-      if (!state.currentChatId && firstChatId) selectChat(firstChatId);
-      else if (!state.currentChatId && sorted.length === 0) createNewChat();
-      else if (state.currentChatId && !state.chats[state.currentChatId]) selectChat(firstChatId);
-      else renderCurrentChat();
-    }
-
-    function createMessageElement(msg) {
-      const isUser = msg.role === 'user';
-      const bubbleClasses = isUser
-        ? 'bg-[var(--accent)] text-black ml-auto font-medium'
-        : 'bg-[var(--layer2)] mr-auto text-white border border-[var(--border)]';
-
-      const container = document.createElement('div');
-      container.className = 'flex ' + (isUser ? 'justify-end' : 'justify-start');
-
-      const bubble = document.createElement('div');
-      bubble.className = `chat-bubble p-3 shadow-md ${bubbleClasses}`;
-
-      let htmlContent = (msg.content || '')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
-        .replace(/\n/g, '<br>');
-
-      bubble.innerHTML = htmlContent;
-      container.appendChild(bubble);
-      return container;
-    }
-
-    function renderCurrentChat() {
-      const chatId = state.currentChatId;
-      const chat = state.chats[chatId];
-      if (!chat) return;
-
-      chatTitleEl.textContent = chat.title || 'Новый чат';
-      messagesContainer.innerHTML = '';
-
-      if (chat.messages.length === 0) {
-        messagesContainer.innerHTML = `
-          <div class="text-center text-[var(--muted)] pt-8">
-            <i class="fa-solid fa-robot text-5xl text-[var(--accent)] mb-3 opacity-70"></i>
-            <p class="text-lg font-semibold">Начните диалог с Burini AI.</p>
-            <p class="text-sm mt-1">Текущий режим: <strong>${state.settings.currentMode.toUpperCase()}</strong></p>
-            <p class="text-xs mt-1">Модель: ${state.settings.currentModel.split('/')[1] || 'Grok'}</p>
-          </div>
-        `;
-      }
-
-      // Батч рендера для производительности
-      const frag = document.createDocumentFragment();
-      chat.messages.forEach(msg => {
-        frag.appendChild(createMessageElement(msg));
-      });
-      messagesContainer.appendChild(frag);
-      scrollToBottom();
-    }
-
-    function addTypingIndicator() {
-      if (document.getElementById('typing-indicator')) return;
-      const container = document.createElement('div');
-      container.id = 'typing-indicator';
-      container.className = 'flex justify-start mb-4';
-
-      const indicator = document.createElement('div');
-      indicator.className = 'typing-indicator bg-[var(--layer2)] p-3 rounded-xl shadow-lg flex space-x-1';
-      indicator.innerHTML = `
-        <span class="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce" style="animation-delay:0ms"></span>
-        <span class="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce" style="animation-delay:100ms"></span>
-        <span class="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce" style="animation-delay:200ms"></span>
+      filePreviewEl.innerHTML = `
+        <div class="file-preview">
+          ${icon}
+          <div class="file-name">${file.name}</div>
+          <div class="remove-btn" onclick="removeAFile()">✕</div>
+        </div>
       `;
-      container.appendChild(indicator);
-      messagesContainer.appendChild(container);
-      state.isTyping = true;
-      scrollToBottom();
     }
 
-    function removeTypingIndicator() {
-      const indicator = document.getElementById('typing-indicator');
-      if (indicator) indicator.remove();
-      state.isTyping = false;
+    window.removeAFile = () => {
+      state.AFile = null;
+      fileInput.value = null;
+      renderFilePreview();
+    }
+
+    async function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const isImage = SUPPORTED_MIMES.image.includes(file.type);
+      const isText = SUPPORTED_MIMES.text.includes(file.type);
+
+      if (!isImage && !isText) { showToast(`Неподдерживаемый тип: ${file.type}`); fileInput.value = null; return; }
+      if (isImage && file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) { showToast(`Изображение > ${MAX_IMAGE_SIZE_MB}MB`); fileInput.value = null; return; }
+      if (isText && file.size > MAX_TEXT_SIZE_KB * 1024) { showToast(`Текст > ${MAX_TEXT_SIZE_KB/1024}MB`); fileInput.value = null; return; }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        let contentForAPI = null;
+        let contentForUI = null;
+
+        if (isImage) {
+          contentForAPI = e.target.result;
+          contentForUI = e.target.result;
+        } else if (isText) {
+          const fileContent = e.target.result;
+          const lang = file.type.split('/').pop().replace('x-','').replace('+plain', 'text');
+          contentForAPI = `Содержимое файла "${file.name}" (тип: ${file.type}):\n\`\`\`${lang}\n${fileContent}\n\`\`\``;
+          contentForUI = `**Прикреплен файл:** \`${file.name}\` (${file.type}).\n\n\`\`\`${lang}\n${fileContent.slice(0, 150).trim()}...\n\`\`\``;
+        }
+
+        state.AFile = { name: file.name, type: file.type, contentForAPI, contentForUI };
+        renderFilePreview();
+      };
+
+      if (isImage) reader.readAsDataURL(file);
+      else reader.readAsText(file);
+    }
+
+    // Markdown parser (optimized)
+    function parseMarkdown(text) {
+      if (!text) return '';
+      let html = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      html = html.replace(/```(\w+)?\n?([\s\S]*?)```/g, (m,lang,content)=> `<div class="code-placeholder" data-lang="${lang||'text'}">${content}</div>`);
+      html = html.replace(/^&gt; (.*$)/gim, '<blockquote><p>$1</p></blockquote>');
+      html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>').replace(/^## (.*$)/gim, '<h2>$1</h2>').replace(/^# (.*$)/gim, '<h1>$1</h1>');
+      html = html.replace(/^[*-] (.*$)/gim, '<li>$1</li>').replace(/^(\d+\.) (.*$)/gim, '<li>$2</li>');
+      html = html.replace(/(<li>[\s\S]*?<\/li>(\s*<li>[\s\S]*?<\/li>)*)/gims, m=> '<ul>' + m.trim() + '</ul>');
+      html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>');
+      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+      html = html.replace(/([^\n])\n([^\n])/g, '$1<br>$2');
+      html = html.replace(/\n\n/g, '</p><p>');
+      html = '<p>' + html + '</p>';
+      html = html.replace(/<p>(\s*<h[1-6]>[\s\S]*?<\/h[1-6]>\s*)<\/p>/g, '$1');
+      html = html.replace(/<p>(\s*<blockquote>[\s\S]*?<\/blockquote>\s*)<\/p>/g, '$1');
+      html = html.replace(/<p>(\s*<ul[\s\S]*?<\/ul>\s*)<\/p>/g, '$1');
+      html = html.replace(/<p>(\s*<div class="code-placeholder"[\s\S]*?<\/div>\s*)<\/p>/g, '$1');
+      html = html.replace(/<p><\/p>/g, '');
+      html = html.replace(/<ul>\s*<p>/g, '<ul>').replace(/<\/p>\s*<\/ul>/g, '</ul>');
+      html = html.replace(/<blockquote>\s*<p>/g, '<blockquote>').replace(/<\/p>\s*<\/blockquote>/g, '</blockquote>');
+      return html;
+    }
+
+    // Code blocks processing (deferred for performance)
+    function processCodeBlocks(bubbleElement) {
+      const codePlaceholders = bubbleElement.querySelectorAll('.code-placeholder');
+      codePlaceholders.forEach(ph => {
+        const content = ph.textContent;
+        const lang = ph.dataset.lang;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'code-block-wrapper';
+        const pre = document.createElement('pre');
+        const code = document.createElement('code');
+        code.textContent = content.trim();
+        code.className = `language-${lang}`;
+        pre.appendChild(code);
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.textContent = 'Копировать';
+        copyBtn.onclick = (e) => {
+          e.stopPropagation();
+          const textToCopy = code.textContent; 
+          navigator.clipboard.writeText(textToCopy).then(() => {
+            const originalText = copyBtn.textContent;
+            copyBtn.textContent = 'Скопировано!';
+            setTimeout(() => copyBtn.textContent = originalText, 1200);
+          }).catch(()=>{});
+        };
+        wrapper.appendChild(pre);
+        wrapper.appendChild(copyBtn);
+        ph.parentNode.replaceChild(wrapper, ph);
+      });
+    }
+
+    function appendBubble(role, content, isHtml = false) {
+      const bubble = document.createElement("div");
+      bubble.className = "bubble " + role;
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = ({user:"ты",assistant:"burini",system:"система"}[role] || role);
+      const body = document.createElement("div");
+      body.className = "content";
+      body.innerHTML = isHtml ? content : parseMarkdown(content);
+      bubble.appendChild(meta); bubble.appendChild(body);
+      chatEl.appendChild(bubble);
+      // Defer code processing
+      if (role === 'assistant') {
+        if (window.requestIdleCallback) requestIdleCallback(()=>processCodeBlocks(body));
+        else setTimeout(()=>processCodeBlocks(body), 0);
+      }
+    }
+
+    function renderChat() {
+      chatEl.innerHTML = "";
+      const chat = state.currentChat();
+      if (!chat) {
+        const empty = document.createElement("div");
+        empty.className = "bubble system";
+        empty.innerHTML = '<div class="meta">система</div><div class="content">Создай новый чат и задай первый вопрос. Burini рядом.</div>';
+        chatEl.appendChild(empty);
+      } else {
+        chat.messages.forEach(m => {
+          if (Array.isArray(m.content)) {
+            const textPart = m.content.find(c => c.type === 'text')?.text || '';
+            const imagePart = m.content.find(c => c.type === 'image_url')?.image_url?.url || '';
+            const filePart = m.content.find(c => c.type === 'file_content')?.content || '';
+            let contentHTML = parseMarkdown(textPart);
+            if (imagePart) contentHTML += `<p><img src="${imagePart}" alt="Attached Image"></p>`;
+            else if (filePart) contentHTML += parseMarkdown(filePart);
+            appendBubble(m.role, contentHTML, true);
+          } else {
+            appendBubble(m.role, m.content);
+          }
+        });
+      }
+      chatEl.scrollTop = chatEl.scrollHeight;
+      inputEl.focus();
+    }
+
+    async function typeMessage(text, speedMs = 6) {
+      const chat = state.currentChat();
+      if (!chat) return;
+      state.isTyping = true;
+      let lastMessage = chat.messages[chat.messages.length - 1];
+      if (!lastMessage || lastMessage.role !== "assistant") {
+        const msg = { role: "assistant", content: "", ts: Date.now() };
+        chat.messages.push(msg); lastMessage = msg;
+      }
+      const bubble = document.createElement("div");
+      bubble.className = "bubble assistant";
+      const meta = document.createElement("div");
+      meta.className = "meta"; meta.textContent = "burini";
+      const contentEl = document.createElement("div");
+      contentEl.className = "content";
+      bubble.appendChild(meta); bubble.appendChild(contentEl);
+      chatEl.appendChild(bubble);
+
+      let i = 0;
+      function step() {
+        lastMessage.content = text.slice(0, i);
+        contentEl.innerHTML = parseMarkdown(lastMessage.content);
+        if (window.requestIdleCallback) requestIdleCallback(()=>processCodeBlocks(contentEl));
+        else setTimeout(()=>processCodeBlocks(contentEl), 0);
+        chatEl.scrollTop = chatEl.scrollHeight;
+        i++;
+        if (i <= text.length) setTimeout(step, speedMs);
+        else { store.save(state.data); notifyUser("Ответ готов ✨"); state.isTyping = false; }
+      }
+      step();
     }
 
     async function sendMessage() {
-      if (state.isTyping || !state.currentChatId) return;
-      const userPrompt = promptInput.value.trim();
-      if (!userPrompt) return;
+      const text = inputEl.value.trim();
+      const file = state.AFile;
 
-      const currentChat = state.chats[state.currentChatId];
-      if (!currentChat) return showToast('Чат не найден. Создайте новый.', 'danger');
+      if (!text && !file) { showToast("Введите текст или прикрепите файл."); return; }
+      if (state.isTyping) { showToast("Burini уже отвечает, подождите!"); return; }
+      if (!state.currentChatId) state.addChat();
 
-      // Ограничение сообщений для производительности
-      if (currentChat.messages.length > 500) {
-        currentChat.messages = currentChat.messages.slice(-500);
+      const chat = state.currentChat();
+      if (chat && chat.messages.length === 0 && text) state.renameCurrent(text.slice(0, 48));
+
+      let userContentForAPI = [];
+      let userContentForUI = [];
+
+      if (text) {
+        userContentForAPI.push({ type: "text", text: text });
+        userContentForUI.push({ type: "text", text: text });
       }
-
-      const apiMessages = currentChat.messages.map(m => ({ role: m.role, content: m.content }));
-      const userMessageLocal = { role: 'user', content: userPrompt };
-      currentChat.messages.push(userMessageLocal);
-      renderCurrentChat();
-      saveDataToLocalStorage();
-
-      promptInput.value = '';
-      promptInput.style.height = '48px';
-      addTypingIndicator();
-      sendBtn.disabled = true;
-
-      try {
-        const response = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: state.settings.currentModel,
-            mode: state.settings.currentMode,
-            messages: [...apiMessages, { role: 'user', content: userPrompt }],
-            userSystemPrompt: state.settings.userSystemPrompt,
-            title: 'Burini Smart',
-            referer: location.origin
-          })
-        });
-
-        if (!response.ok) {
-          let errorText = `API Error: ${response.status}`;
-          try { errorText = (await response.json()).error?.message || errorText; } catch {}
-          throw new Error(errorText);
-        }
-
-        const data = await response.json();
-        const aiResponseText = data.content || 'Произошла ошибка при получении ответа от ИИ.';
-        const aiMessageLocal = { role: 'assistant', content: aiResponseText };
-        currentChat.messages.push(aiMessageLocal);
-
-        if (apiMessages.length === 0) {
-          const newTitle = userPrompt.substring(0, 30) + (userPrompt.length > 30 ? '...' : '');
-          currentChat.title = newTitle;
-          renderChatList();
-        }
-      } catch (error) {
-        console.error('Chat API error:', error);
-        const errorMsgObj = { role: 'assistant', content: `[Ошибка]: ${error.message || 'Ошибка подключения'}` };
-        currentChat.messages.push(errorMsgObj);
-      } finally {
-        removeTypingIndicator();
-        sendBtn.disabled = false;
-        renderCurrentChat();
-        saveDataToLocalStorage();
-      }
-    }
-
-    // Telegram WebApp init
-    function initTelegram() {
-      if (window.Telegram && window.Telegram.WebApp) {
-        const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
-        tg.setHeaderColor('#000000');
-        tg.setBackgroundColor('#000000');
-
-        const unsafe = tg.initDataUnsafe || {};
-        const user = unsafe.user;
-        if (user && user.id) {
-          state.settings.tgUserId = user.id;
-          displayUserId.textContent = `TG:${user.id}`;
+      if (file) {
+        const isImage = file.type.startsWith('image/');
+        if (isImage) {
+          userContentForAPI.push({ type: "image_url", image_url: { url: file.contentForAPI } });
+          userContentForUI.push({ type: "image_url", image_url: { url: file.contentForUI } });
         } else {
-          displayUserId.textContent = 'Локальный';
+          userContentForAPI.push({ type: "text", text: file.contentForAPI });
+          userContentForUI.push({ type: "file_content", content: file.contentForUI });
         }
-        saveDataToLocalStorage();
-      } else {
-        console.warn('Telegram WebApp object not found. Standalone mode.');
-        displayUserId.textContent = 'Локальный';
+      }
+
+      state.addMessage("user", userContentForUI);
+
+      inputEl.value = ""; inputEl.style.height = '48px'; removeAFile();
+      showToast("Готовлю лучший ответ...");
+
+      const messages = chat.messages.map(m => {
+        if (m.role === "user" && m.content === userContentForUI) {
+          return { role: "user", content: userContentForAPI };
+        }
+        if (Array.isArray(m.content)) {
+          const previousText = m.content.find(c => c.type === 'text')?.text || m.content.find(c => c.type === 'file_content')?.content || '';
+          return { role: m.role, content: previousText };
+        }
+        return { role: m.role, content: m.content };
+      }).filter(m => m.content && (typeof m.content === 'string' ? m.content.trim() !== '' : true));
+
+      const s = state.settings;
+      try {
+        const resp = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages,
+            model: s.model || "burini-smart",
+            referer: location.origin,
+            title: "Burini Smart",
+            userSystemPrompt: s.userPrompt || ""
+          }),
+        });
+        const data = await resp.json();
+        if (data.error) {
+          const errMsg = data.error.message || JSON.stringify(data.error);
+          state.addMessage("assistant", "Ошибка: " + errMsg);
+          showToast("Ошибка API! " + errMsg.slice(0, 50) + "...");
+          state.isTyping = false;
+        } else {
+          await typeMessage(data.content, 6);
+        }
+      } catch (e) {
+        state.addMessage("assistant", "Сбой соединения: " + e.message);
+        showToast("Сбой соединения: проверьте бэкенд");
+        state.isTyping = false;
       }
     }
 
-    // Инициализация
-    function initializeApp() {
-      loadDataFromLocalStorage();
-      applySettings();
-      initTelegram();
-      renderChatList();
+    // Chat list
+    function renderChatList() {
+      chatListEl.innerHTML = "";
+      const chats = state.data.chats;
+      if (!chats.length) {
+        const empty = document.createElement("div");
+        empty.className = "chat-item";
+        empty.style.cursor = "default";
+        empty.textContent = "История пуста — создайте новый чат.";
+        chatListEl.appendChild(empty);
+        return;
+      }
+      chats.forEach(c => {
+        const item = document.createElement("div");
+        item.className = "chat-item" + (c.id === state.currentChatId ? " active" : "");
+        const title = document.createElement("div");
+        title.className = "chat-title";
+        title.textContent = c.title || "Без названия";
+        const actions = document.createElement("div");
+        actions.className = "chat-actions";
+        const renameBtn = document.createElement("button");
+        renameBtn.className = "btn ghost";
+        renameBtn.textContent = "Переим.";
+        renameBtn.onclick = async (e) => {
+          e.stopPropagation();
+          const nv = prompt("Новое название чата:", c.title || "");
+          if (nv !== null) { c.title = (nv.trim() || "Без названия"); store.save(state.data); renderChatList(); }
+        };
+        const delBtn = document.createElement("button");
+        delBtn.className = "btn danger";
+        delBtn.textContent = "✕";
+        delBtn.onclick = async (e) => {
+          e.stopPropagation();
+          if (confirm("Удалить этот чат?")) state.deleteChat(c.id);
+        };
+        actions.appendChild(renameBtn);
+        actions.appendChild(delBtn);
+        item.appendChild(title);
+        item.appendChild(actions);
+        item.onclick = (e) => {
+          if (e.target.closest('.chat-actions')) return;
+          state.currentChatId = c.id; renderChatList(); renderChat(); sidebar.classList.remove("open");
+        };
+        chatListEl.appendChild(item);
+      });
     }
 
-    // Events
-    menuBtn.onclick = () => toggleSidebar(true);
-    closeSidebarBtn.onclick = () => toggleSidebar(false);
-    newChatBtn.onclick = createNewChat;
+    // Settings load/save
+    function loadSettings() {
+      const s = state.settings;
+      document.body.setAttribute("data-theme", (s.theme || "dark"));
+      themeToggle.checked = (s.theme || "dark") === "dark";
+      starsEl.style.display = s.stars ? "block" : "none";
+      starsToggle.checked = !!s.stars;
+      notifyToggle.checked = s.notify !== false;
+      modelSelect.value = s.model || "burini-smart";
+      userPromptInput.value = s.userPrompt || "";
+    }
+    function saveSettings() {
+      state.setSetting("theme", themeToggle.checked ? "dark" : "light");
+      state.setSetting("stars", starsToggle.checked);
+      state.setSetting("notify", notifyToggle.checked);
+      state.setSetting("model", modelSelect.value);
+      loadSettings();
+    }
+    saveUserPromptBtn.onclick = () => { state.setSetting("userPrompt", userPromptInput.value.trim()); showToast("Промпт сохранён"); };
+    clearUserPromptBtn.onclick = () => { state.setSetting("userPrompt", ""); userPromptInput.value = ""; showToast("Промпт очищен"); };
 
+    // Listeners
+    newChatBtn.onclick = () => { state.addChat(); showToast("Создан новый чат"); };
     sendBtn.onclick = sendMessage;
-    promptInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
+    inputEl.addEventListener("input", (e) => {
+      e.target.style.height = 'auto';
+      e.target.style.height = Math.min(e.target.scrollHeight, window.innerHeight*0.4) + 'px';
     });
-    promptInput.addEventListener('input', function() {
-      this.style.height = '48px';
-      this.style.height = Math.min(this.scrollHeight, 160) + 'px';
-    });
+    inputEl.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
 
+    // Settings drawer
     settingsBtn.onclick = () => {
-      settingsPanel.classList.remove('opacity-0', 'pointer-events-none');
+      const opened = settingsPanel.classList.toggle("open");
+      if (opened) sidebar.classList.remove("open");
     };
-    closeSettingsBtn.onclick = () => {
-      settingsPanel.classList.add('opacity-0', 'pointer-events-none');
-      saveSettings();
-    };
-    settingsPanel.addEventListener('click', (e) => {
-      if (e.target === settingsPanel) {
-        settingsPanel.classList.add('opacity-0', 'pointer-events-none');
-        saveSettings();
-      }
-    });
 
-    modeButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        state.settings.currentMode = btn.dataset.mode;
-        state.settings.currentModel = btn.dataset.model;
-        applySettings();
-        saveSettings();
-        if (state.currentChatId) renderCurrentChat();
+    // Data management
+    clearChatsBtn.onclick = () => { if (confirm("Удалить все чаты? Это действие необратимо.")) { state.clearChats(); showToast("Все чаты удалены"); } };
+    deleteAccountBtn.onclick = () => {
+      if (confirm("Навсегда удалить учётку и данные? Это действие НЕОБРАТИМО.")) {
+        store.clear(); state.data = { chats: [], settings: {} }; state.currentChatId = null;
+        loadSettings(); renderChatList(); renderChat(); showToast("Учётка и данные удалены");
+      }
+    };
+
+    // Search
+    searchInput.addEventListener("input", (e) => {
+      const query = e.target.value.toLowerCase();
+      document.querySelectorAll('#chatList .chat-item').forEach(item => {
+        item.style.display = item.textContent.toLowerCase().includes(query) ? 'flex' : 'none';
       });
     });
+    document.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); searchInput.focus(); }
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { settingsPanel.classList.remove("open"); sidebar.classList.remove("open"); }
+    });
 
-    [modelSelect, starsToggle, notifyToggle, userSystemPromptEl].forEach(el => el.addEventListener('change', saveSettings));
+    // Model changes
+    modelSelect.addEventListener("change", saveSettings);
+    themeToggle.addEventListener("change", saveSettings);
+    starsToggle.addEventListener("change", () => {
+      document.getElementById("stars").style.display = starsToggle.checked ? "block" : "none";
+      saveSettings();
+    });
+    notifyToggle.addEventListener("change", saveSettings);
 
-    initializeApp();
+    // Init
+    if (!state.data.chats.length) state.addChat();
+    if (!state.currentChatId) state.currentChatId = state.data.chats[0].id;
+    loadSettings(); renderChatList(); renderChat();
+    inputEl.focus();
   </script>
 </body>
 </html>
